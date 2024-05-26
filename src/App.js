@@ -1,4 +1,4 @@
-import React, {useState, useRef} from "react";
+import React, {useState, useRef, useEffect} from "react";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from 'primereact/button';
@@ -11,8 +11,14 @@ import { Toast } from 'primereact/toast';
 import { Tag } from 'primereact/tag';
 import { Dropdown } from 'primereact/dropdown';
 
-
 import './App.css';
+import productsApi from "./services/api.products";
+
+const statusOptions = [
+    { name: 'Em Estoque', code: 'in' },
+    { name: 'Baixo Estoque', code: 'low' },
+    { name: 'Fora de Estoque', code: 'out' },
+];
 
 const Table = () => {
     const toast = useRef(null);
@@ -27,107 +33,17 @@ const Table = () => {
     const [categoryEdit, setCategoryEdit] = useState(undefined);
     const [statusEdit, setStatusEdit] = useState(undefined);
     const [ratingEdit, setRatingEdit] = useState(undefined);
+    
+    const [productsArray, setProductsArray] = useState([]);
 
+    useEffect(() => {
+        fetchProducts()
+    }, [])
 
-    const products = [
-        {
-          id: 1,
-          name: "Salmão",
-          price: "200",
-          category: "Alimentos",
-          quantity: "7",
-          status: 'low',
-          rating: "5",
-        },
-        {
-          id: 2,
-          name: "Arroz",
-          price: "12",
-          category: "Acompanhamentos",
-          quantity: "23",
-          status: 'in',
-          rating: "2",
-        },
-        {
-          id: 3,
-          name: "Cream Cheese ",
-          price: "14",
-          category: "Acompanhamentos",
-          quantity: "5",
-          status: 'out',
-          rating: "4",
-        },
-        {
-          id: 4,
-          name: "Vassoura",
-          price: "5",
-          category: "Itens de Limpeza",
-          quantity: "10",
-          status: 'out',
-          rating: "4",
-        },
-        {
-          id: 5,
-          name: "Sabão",
-          price: "14",
-          category: "Itens de Limpeza",
-          quantity: "20",
-          status: 'in',
-          rating: "5",
-        },
-        {
-          id: 6,
-          name: "Atum",
-          price: "400",
-          category: "Alimentos",
-          quantity: "7",
-          status: 'low',
-          rating: "3",
-        },
-        {
-          id: 7,
-          name: "Molho Tarê",
-          price: "34",
-          category: "Condimentos",
-          quantity: "15",
-          status: 'out',
-          rating: "4",
-        },
-        {
-          id: 8,
-          name: "Shoyu",
-          price: "223",
-          category: "Condimentos",
-          quantity: "30",
-          status: 'in',
-          rating: "5",
-        },
-        {
-          id: 9,
-          name: "Saquê",
-          price: "500",
-          category: "Bebidas",
-          quantity: "10",
-          status: 'out',
-          rating: "4",
-        },
-        {
-          id: 10,
-          name: "Água",
-          price: "22",
-          category: "Bebidas",
-          quantity: "4",
-          status: 'low',
-          rating: "3",
-        },
-    ];
-    const statusOptions = [
-        { name: 'Em Estoque', code: 'in' },
-        { name: 'Baixo Estoque', code: 'low' },
-        { name: 'Fora de Estoque', code: 'out' },
-    ];
-
-    const [productsArray, setProductsArray] = useState(products);
+    const fetchProducts = async () => {
+        const products = await productsApi.getProducts()
+        setProductsArray(products)
+    }
 
     const header = () => {
         return (
@@ -148,7 +64,6 @@ const Table = () => {
                     severity="warning" 
                     aria-label="Editar" 
                     onClick={() => {
-                        console.log(rowData);
                         setActionItemId(rowData.id)
                         setNameEdit(rowData.name)
                         setPriceEdit(rowData.price)
@@ -173,10 +88,8 @@ const Table = () => {
         )
     }
 
-    const editItemAction = () => {
-        const newProductsArray = [...productsArray];
-        const index = newProductsArray.findIndex((item) => item.id === actionItemId);
-        newProductsArray[index] = {
+    const editItemAction = async () => {
+        const dataToUpdate = {
             id: actionItemId,
             name: nameEdit,
             price: priceEdit,
@@ -185,14 +98,16 @@ const Table = () => {
             status: statusEdit.code,
             rating: ratingEdit,
         };
-        setProductsArray(newProductsArray)
+        
+        const { error } = await productsApi.updateProduct(actionItemId, dataToUpdate);
+        if (error) return
+
+        fetchProducts()
         resetAndCloseEditDialog()
     }
 
-    const createItemAction = () => {
-        const newProductsArray = [...productsArray];
+    const createItemAction = async () => {
         const newProduct = {
-            id: newProductsArray[newProductsArray.length - 1].id + 1,
             name: nameEdit,
             price: priceEdit,
             category: categoryEdit,
@@ -200,24 +115,25 @@ const Table = () => {
             status: statusEdit.code,
             rating: ratingEdit,
         };
+        const { error } = await productsApi.newProduct(newProduct)
 
-        newProductsArray.push(newProduct);
-        setProductsArray(newProductsArray);
+        if (error) return
+        fetchProducts();
         resetAndCloseEditDialog()
     }
 
-    const deleteItemAction = (itemId) => {
-        const newProductsArray = [...productsArray];
-        const index = newProductsArray.findIndex((item) => item.id === itemId);
-        newProductsArray.splice(index, 1);
-        setProductsArray(newProductsArray)
+    const deleteItemAction = async (itemId) => {
+        const { error } = await productsApi.deleteProduct(itemId)
+
+        if (error) return
+        fetchProducts()
         resetAndCloseEditDialog()
     }
 
-    const bulkDeleteItensAction = () => {
+    const bulkDeleteItensAction = async () => {
         const selectedProdcutIds = selectedProduct.map((item) => item.id)
-        const newProductsArray = [...productsArray.filter((item) => !selectedProdcutIds.includes(item.id))];
-        setProductsArray(newProductsArray)
+        await Promise.all(selectedProdcutIds.map(itemId => productsApi.deleteProduct(itemId)))
+        fetchProducts()
         resetAndCloseEditDialog()
     }
 
@@ -276,7 +192,6 @@ const Table = () => {
 
     const statusBodyTemplate = (rowData) => {
         const statusObject = statusOptions[statusOptions.findIndex((status) => status.code === rowData.status)]
-        console.log(statusObject);
         return <Tag value={statusObject ? statusObject.name : ""} severity={getSeverity(statusObject.name)} />;
     };
 
